@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f74c0">
+  <meta name="description" content="只用 CSS 動畫與疊加混合做出的白天海面，沒有 JavaScript。">
+  <title>海</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="scene" role="img" aria-label="晴朗白天的海面，遠方是積雲，一道道波浪朝鏡頭推進，浪頭碎成白沫，水面閃著陽光">
+    <div class="camera">
+      <div class="sky">
+        <div class="clouds"></div>
+      </div>
+
+      <div class="sea">
+        <div class="surface surface--far">
+          <div class="plane">
+            <div class="swell">
+              <i class="wave wave--a"></i>
+              <i class="wave wave--b"></i>
+              <i class="wave wave--c"></i>
+              <i class="wave wave--d"></i>
+            </div>
+          </div>
+        </div>
+        <div class="surface surface--near">
+          <div class="plane">
+            <div class="swell">
+              <i class="wave wave--a"></i>
+              <i class="wave wave--b"></i>
+              <i class="wave wave--c"></i>
+              <i class="wave wave--d"></i>
+              <i class="wave wave--light"></i>
+            </div>
+            <div class="fine">
+              <i class="wave wave--e"></i>
+              <i class="wave wave--f"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="depth"></div>
+        <div class="tint"></div>
+
+        <div class="spray surface--far">
+          <div class="plane">
+            <i class="wave wave--spray"></i>
+          </div>
+        </div>
+        <div class="foam surface--near">
+          <div class="plane">
+            <i class="wave wave--foam"></i>
+            <i class="wave wave--glint"></i>
+            <i class="wave wave--patch"></i>
+          </div>
+        </div>
+
+        <div class="haze"></div>
+      </div>
+    </div>
+  </main>
+
+  <svg class="filters" width="0" height="0" aria-hidden="true">
+    <filter id="relief-8" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feDisplacementMap in="SourceGraphic" in2="SourceGraphic" scale="8" xChannelSelector="A" yChannelSelector="R"/>
+      <feOffset dx="-4"/>
+    </filter>
+    <filter id="relief-7" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feDisplacementMap in="SourceGraphic" in2="SourceGraphic" scale="7" xChannelSelector="A" yChannelSelector="R"/>
+      <feOffset dx="-3.5"/>
+    </filter>
+    <filter id="relief-4" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feDisplacementMap in="SourceGraphic" in2="SourceGraphic" scale="4" xChannelSelector="A" yChannelSelector="R"/>
+      <feOffset dx="-2"/>
+    </filter>
+    <filter id="relief-3" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feDisplacementMap in="SourceGraphic" in2="SourceGraphic" scale="3" xChannelSelector="A" yChannelSelector="R"/>
+      <feOffset dx="-1.5"/>
+    </filter>
+  </svg>
+</body>
+</html>

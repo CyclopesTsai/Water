@@ -1,0 +1,13 @@
+# 作業系統
+.DS_Store
+
+# 編輯器與 Claude Code 的本機設定
+.idea/
+.vscode/
+.claude/
+
+# 跑 tools/bake.py 時的 Python 環境
+__pycache__/
+*.py[cod]
+.venv/
+venv/

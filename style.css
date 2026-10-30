@@ -1,0 +1,376 @@
+:root {
+  /* 鏡頭：--horizon 是海平線離畫面頂端的距離，--eye 是焦距，--height 是眼睛離海面的高度 */
+  --horizon: 34vh;
+  --sea: calc(100vh - var(--horizon) + 8vh);
+  --eye: 200vh;
+  --height: calc(var(--sea) * .8);
+
+  /*
+   * 紋理層的記憶體正比於 (畫面面積 × 像素密度²) / --soft²。超過瀏覽器的圖塊預算時，
+   * 幀率不會掉，畫面卻會整塊缺失，所以依螢幕分級，把總量壓在約 200 MB 以內。
+   * --relief 的位移量以紋理層的像素計算，要跟著 --soft 調整（約 24 / --soft）。
+   */
+  --soft: 3;
+  --relief: url(#relief-8);
+}
+
+@media (min-width: 1700px) {
+  :root { --soft: 3.5; --relief: url(#relief-7); }
+}
+
+@media (min-width: 3000px) {
+  :root { --soft: 5.5; --relief: url(#relief-4); }
+}
+
+@media (min-resolution: 2dppx) {
+  :root { --soft: 6; --relief: url(#relief-4); }
+}
+
+@media (min-resolution: 2dppx) and (min-width: 1700px) {
+  :root { --soft: 7.5; --relief: url(#relief-3); }
+}
+
+@media (min-resolution: 2dppx) and (min-width: 2400px) {
+  :root { --soft: 9; --relief: url(#relief-3); }
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #2f74c0;
+}
+
+.scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* 整個畫面像站在甲板上一樣緩慢起伏 */
+.camera {
+  position: absolute;
+  inset: -4vh -2vw;
+  animation: bob 13s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(-.6vh) rotate(-.2deg); }
+  35%      { transform: translateY(.8vh) rotate(.14deg); }
+  70%      { transform: translateY(-.2vh) rotate(.26deg); }
+}
+
+/* ---------- 天空 ---------- */
+
+.sky {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--horizon);
+  overflow: hidden;
+  background:
+    linear-gradient(to bottom,
+      #2d72c2 0%,
+      #4a8fd6 38%,
+      #86bbe6 72%,
+      #c5e0f2 92%,
+      #e3f0f8 100%);
+}
+
+/* 光線步進算出的雲景，寬度比畫面大，來回飄移的幅度才藏得住邊緣 */
+.clouds {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: max(231vh, 130vw);
+  aspect-ratio: 231 / 40;
+  background: url(textures/clouds.webp) 0 0 / 100% 100%;
+  animation: cloud-drift 280s ease-in-out infinite alternate;
+}
+
+@keyframes cloud-drift {
+  from { transform: translateX(-53%); }
+  to   { transform: translateX(-47%); }
+}
+
+/* ---------- 海 ---------- */
+
+.sea {
+  position: absolute;
+  inset: var(--horizon) 0 auto;
+  height: var(--sea);
+  overflow: hidden;
+  isolation: isolate;
+  background: #808080;
+}
+
+.surface,
+.foam {
+  position: absolute;
+  inset: 0;
+  perspective: var(--eye);
+  perspective-origin: 50% 0;
+}
+
+/*
+ * 透視平面在畫面上遠比視窗大，直接用實際尺寸排版會把 GPU 記憶體吃光。
+ * 所以元素本身做小，再用 scale(--k, --ky) 放大回世界尺寸；瀏覽器依元素尺寸
+ * 光柵化，視線方向又被壓縮，不需要同樣的解析度，--ky 可以比 --k 大很多。
+ * 海面分遠近兩段，各自的密度才符合它在畫面上的大小。
+ */
+.surface--near {
+  --near: 150vh;
+  --far: 640vh;
+  --world-w: 340vw;
+  --k: var(--soft);
+  --ky: calc(2.5 * var(--soft));
+  --zoom: 1;
+  --pace: 1;
+}
+
+.surface--far {
+  --near: 450vh;
+  --far: 9000vh;
+  --world-w: 4700vw;
+  --k: calc(6 * var(--soft));
+  --ky: calc(18 * var(--soft));
+  --zoom: 3;
+  --pace: 1.73;
+}
+
+.plane {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(var(--world-w) / var(--k));
+  height: calc((var(--far) - var(--near)) / var(--ky));
+  margin-left: calc(var(--world-w) / var(--k) / -2);
+  overflow: hidden;
+  isolation: isolate;
+  transform-origin: 50% 0;
+  transform:
+    translate3d(0, var(--height), calc(var(--eye) - var(--far)))
+    rotateX(90deg)
+    scale(var(--k), var(--ky));
+}
+
+/* 元素上方是遠處。近段蓋在遠段上並往遠處淡出，遠段不必再畫一次遮罩 */
+.surface--near .plane {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 39%);
+  mask-image: linear-gradient(to bottom, transparent, #000 39%);
+}
+
+/*
+ * 用灰階本身當位移量：背向鏡頭的斜面被壓扁，面向鏡頭的斜面被拉開，
+ * 就像真的波浪會擋住自己的背面。濾鏡做在透視平面內，位移自然近大遠小。
+ * Safari 的 url() 濾鏡走軟體路徑，觸控裝置的 GPU 也不一定撐得住，都不套用。
+ */
+/* 灰階是沿視線的斜率。波是線性疊加的，所以用透明度取平均，再一起拉回對比 */
+.swell {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  filter: contrast(3.2);
+}
+
+@supports not (font: -apple-system-body) {
+  @media (hover: hover) {
+    .surface--near .swell {
+      filter: contrast(3.2) var(--relief);
+    }
+  }
+}
+
+/*
+ * 每張紋理只含朝一個方向前進的波，沿 (--move-x, --move-y) 位移整數格就能無縫循環。
+ * 週期依深水色散 c = √(gλ/2π) 換算，長浪比短浪跑得快。
+ */
+.wave {
+  --tile: 320vh;
+  --tile-x: calc(var(--tile) * var(--zoom) / var(--k));
+  --tile-y: calc(var(--tile) * var(--zoom) / var(--ky));
+  --from-x: 0;
+  --move-x: 0;
+  --move-y: 1;
+  --reach: 0;
+  position: absolute;
+  inset:
+    calc(var(--tile-y) * var(--move-y) * -1) 0 0
+    calc(var(--tile-x) * var(--reach) * -1);
+  background-size: var(--tile-x) var(--tile-y);
+  will-change: transform;
+  animation: drift calc(var(--speed) * var(--pace)) linear infinite;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(calc(var(--tile-x) * var(--from-x)), 0, 0);
+  }
+  to {
+    transform: translate3d(
+      calc(var(--tile-x) * (var(--from-x) + var(--move-x))),
+      calc(var(--tile-y) * var(--move-y)),
+      0);
+  }
+}
+
+.wave--a {
+  --speed: 31s;
+  background-image: url(textures/wave-a.webp);
+}
+
+.wave--b {
+  --tile: 210vh;
+  --move-x: 1;
+  --move-y: 2;
+  --reach: 1;
+  --speed: 56s;
+  background-image: url(textures/wave-b.webp);
+  opacity: .55;
+}
+
+.wave--c {
+  --tile: 130vh;
+  --from-x: 1;
+  --move-x: -1;
+  --move-y: 2;
+  --reach: 1;
+  --speed: 44s;
+  background-image: url(textures/wave-c.webp);
+  opacity: .4;
+}
+
+.wave--d {
+  --tile: 64vh;
+  --move-x: 1;
+  --reach: 1;
+  --speed: 20s;
+  background-image: url(textures/wave-d.webp);
+  opacity: .2;
+}
+
+.wave--e {
+  --tile: 30vh;
+  --from-x: 1;
+  --move-x: -1;
+  --move-y: 3;
+  --reach: 1;
+  --speed: 30s;
+  background-image: url(textures/wave-e.webp);
+  opacity: .36;
+}
+
+.wave--f {
+  --tile: 14vh;
+  --speed: 11s;
+  background-image: url(textures/wave-a.webp);
+  opacity: .3;
+}
+
+/* 最細的波在遠處小於一個像素，只會變成噪點，所以只留在近處 */
+.fine {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  opacity: .5;
+  background: #808080;
+  mix-blend-mode: hard-light;
+  filter: contrast(2.4);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 30%, #000 68%);
+  mask-image: linear-gradient(to bottom, transparent 30%, #000 68%);
+}
+
+/* 雲影與陣風：非常大尺度、非常慢的明暗起伏，讓海面不會處處一樣 */
+.wave--light {
+  --tile: 1300vh;
+  --move-x: 1;
+  --reach: 1;
+  --speed: 240s;
+  background-image: url(textures/patch.webp);
+  opacity: .1;
+}
+
+/*
+ * 灰階上色：先用 screen 墊高暗部（看進海水的顏色），再用 multiply 壓亮部（反射的天空）。
+ * 兩者都隨距離變化：越遠掠射角越小，反射越強，對比也越低。
+ */
+.depth {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  background: linear-gradient(to bottom, #5f8db4 0%, #2f6a98 7%, #0f4d78 26%, #07415f 60%, #063f56 100%);
+}
+
+.tint {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: multiply;
+  background: linear-gradient(to bottom, #cfe4f4 0%, #a9d0ee 10%, #76b2e2 34%, #52a0d6 66%, #3f96cc 100%);
+}
+
+/*
+ * 浪花：紋理跟著長浪走，和慢慢移動的斑塊取平均後再用高對比切門檻，
+ * 白沫只有兩者都夠亮才出現，消散時是碎開來，不會變成半透明的灰色。
+ */
+.foam {
+  mix-blend-mode: screen;
+}
+
+.foam .plane {
+  filter: brightness(.74) contrast(6);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* 遠處的白沫只有幾個像素高，用烘好透明度的單張紋理，省下一整個濾鏡與混合的步驟 */
+.spray {
+  position: absolute;
+  inset: 0;
+  perspective: var(--eye);
+  perspective-origin: 50% 0;
+}
+
+.wave--spray {
+  --tile: 230vh;
+  --speed: 22s;
+  background-image: url(textures/foam-far.webp);
+}
+
+.wave--foam {
+  --tile: 230vh;
+  --speed: 22s;
+  background-image: url(textures/foam.webp);
+}
+
+.wave--patch {
+  --tile: 620vh;
+  --move-x: 1;
+  --reach: 1;
+  --speed: 130s;
+  background-image: url(textures/patch.webp);
+  opacity: .5;
+}
+
+/* 陽光：微小的亮點和白沫共用同一道門檻，只在斑塊夠亮的地方閃爍 */
+.wave--glint {
+  --tile: 96vh;
+  --speed: 21s;
+  background-image: url(textures/glint.webp);
+  mix-blend-mode: plus-lighter;
+}
+
+/* 海平線上的薄霧 */
+.haze {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgb(220 236 247 / .55), rgb(190 220 238 / .12) 1.2vh, transparent 4vh);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera, .wave, .clouds { animation-play-state: paused; }
+}
+
+.filters { position: absolute; }
